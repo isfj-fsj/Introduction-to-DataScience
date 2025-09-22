@@ -1,0 +1,22 @@
+# Python 缓存文件
+__pycache__/
+*.pyc
+*.pyo
+
+# Jupyter Notebook 检查点
+.ipynb_checkpoints/
+
+# 大型数据集文件夹（例如 hasy-data, world_m, cities）
+exercise3/hasy-data/
+exercise3/world_m/
+exercise3/cities/
+
+# 输出/临时文件
+*.csv
+*.json
+*.pdf
+*.txt
+
+# IDE/编辑器配置
+.vscode/
+.DS_Store
