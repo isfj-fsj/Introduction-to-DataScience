@@ -14,7 +14,6 @@ exercise3/cities/
 # 输出/临时文件
 *.csv
 *.json
-*.pdf
 *.txt
 
 # IDE/编辑器配置
