@@ -114,7 +114,7 @@
         </div>
 
         <!-- View Mode Tabs -->
-        <div class="flex items-center justify-center gap-5 flex-wrap">
+        <div class="flex items-center justify-center gap-[20px] flex-wrap">
           <!-- Region Button -->
           <a-button
             :type="activeTab === 'region' ? 'primary' : 'default'"
@@ -227,12 +227,9 @@
                   </a-statistic>
                 </a-col>
 
-                <!-- Current Time -->
+                <!-- Selected Time -->
                 <a-col :span="12">
-                  <a-statistic
-                    title="Current Time"
-                    :value="`${currentTime.year} ${currentTime.month}`"
-                  >
+                  <a-statistic title="Selected Time" :value="`${selectedYear} ${selectedMonth}`">
                     <template #prefix>
                       <ClockCircleOutlined style="color: #52c41a" />
                     </template>
@@ -244,7 +241,7 @@
                   <a-col :span="12">
                     <a-statistic
                       title="Unemployed Count"
-                      :value="getUnemployedCount(selectedRegion)"
+                      :value="getUnemployedCountForSelectedTime(selectedRegion)"
                       :value-style="{ color: '#cf1322' }"
                     >
                       <template #prefix>
@@ -255,7 +252,7 @@
                   <a-col :span="12">
                     <a-statistic
                       title="Total Population"
-                      :value="getTotalPopulation(selectedRegion)"
+                      :value="getTotalPopulationForSelectedTime(selectedRegion)"
                       :value-style="{ color: '#1890ff' }"
                     >
                       <template #prefix>
@@ -301,7 +298,7 @@
   </div>
 </template>
 <script lang="ts" setup>
-import { ref, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, watch, nextTick, computed } from 'vue'
 import * as echarts from 'echarts'
 import {
   DownOutlined,
@@ -312,35 +309,88 @@ import {
   UserAddOutlined,
   DashboardOutlined,
 } from '@ant-design/icons-vue'
+import region_data from '../assets/data1_with_region.json'
+// import occupation_data from '../assets/data2_with_Job.json'
+import occupation_data from '../assets/data2_with_Job.json'
 
-// Reactive states
-const activeTab = ref<'region' | 'occupation'>('region')
-const selectedYear = ref<number>(2023)
-const selectedMonth = ref<string>('January')
-const selectedOccupation = ref<string>('IT & Technology')
-const selectedRegion = ref<string | null>(null)
-const chartContainer = ref<HTMLDivElement | null>(null)
-const lineChartContainer = ref<HTMLDivElement | null>(null)
-let mapChart: echarts.ECharts | null = null
-let lineChart: echarts.ECharts | null = null
+const regionData = ref<any>(region_data)
+const occupationData = ref<any>(occupation_data)
+console.log(regionData.value.data)
+console.log(occupationData.value.data)
 
-// 时间范围配置（可以自定义修改）
-const timeRange = ref({
-  startYear: 2022,
-  startMonth: 'March',
-  endYear: 2026,
-  endMonth: 'June',
+// 从JSON数据中提取可用的年份和月份（Region视图）
+const extractAvailableYearsAndMonthsForRegion = () => {
+  const yearsSet = new Set<number>()
+  const monthsByYear: Record<number, Set<number>> = {}
+
+  regionData.value.data.forEach((item: any) => {
+    const date = new Date(item.time)
+    const year = date.getFullYear()
+    const month = date.getMonth() + 1 // 0-11 -> 1-12
+
+    yearsSet.add(year)
+    if (!monthsByYear[year]) {
+      monthsByYear[year] = new Set()
+    }
+    monthsByYear[year].add(month)
+  })
+
+  return {
+    years: Array.from(yearsSet).sort((a, b) => a - b),
+    monthsByYear,
+  }
+}
+
+// 从JSON数据中提取可用的年份和月份（Occupation视图）
+const extractAvailableYearsAndMonthsForOccupation = () => {
+  const yearsSet = new Set<number>()
+  const monthsByYear: Record<number, Set<number>> = {}
+
+  occupationData.value.data.forEach((item: any) => {
+    const date = new Date(item.time)
+    const year = date.getFullYear()
+    const month = date.getMonth() + 1 // 0-11 -> 1-12
+
+    yearsSet.add(year)
+    if (!monthsByYear[year]) {
+      monthsByYear[year] = new Set()
+    }
+    monthsByYear[year].add(month)
+  })
+
+  return {
+    years: Array.from(yearsSet).sort((a, b) => a - b),
+    monthsByYear,
+  }
+}
+
+const regionYearsData = extractAvailableYearsAndMonthsForRegion()
+const occupationYearsData = extractAvailableYearsAndMonthsForOccupation()
+
+// 从 occupation JSON 数据中提取所有可用的职业名称
+const extractAvailableOccupations = () => {
+  const occupationsSet = new Set<string>()
+  occupationData.value.data.forEach((item: any) => {
+    if (item.job_name) {
+      occupationsSet.add(item.job_name)
+    }
+  })
+  return Array.from(occupationsSet).sort()
+}
+
+const availableOccupations = extractAvailableOccupations()
+
+// 根据当前视图返回对应的年份和月份数据
+const availableYears = computed(() => {
+  return activeTab.value === 'region' ? regionYearsData.years : occupationYearsData.years
 })
 
-// 当前时间配置（可以自定义修改）
-const currentTime = ref<{ year: number; month: string }>({
-  year: 2023,
-  month: 'June',
+const monthsByYear = computed(() => {
+  return activeTab.value === 'region' ? regionYearsData.monthsByYear : occupationYearsData.monthsByYear
 })
 
-// Available options
-const availableYears = [2020, 2021, 2022, 2023, 2024]
-const availableMonths = [
+// 月份名称映射
+const monthNames = [
   'January',
   'February',
   'March',
@@ -354,16 +404,69 @@ const availableMonths = [
   'November',
   'December',
 ]
-const availableOccupations = [
-  'IT & Technology',
-  'Healthcare',
-  'Education & Training',
-  'Manufacturing',
-  'Service Industry',
-  'Construction & Engineering',
-  'Finance',
-  'Sales & Retail',
-]
+
+// Reactive states
+const activeTab = ref<'region' | 'occupation'>('region')
+const selectedYear = ref<any>(regionYearsData.years.length > 0 ? regionYearsData.years[0] : 2008)
+const selectedMonth = ref<string>('January')
+const selectedOccupation = ref<string>(availableOccupations.length > 0 ? availableOccupations[0] : 'Administration professionals')
+const selectedRegion = ref<string | null>(null)
+const chartContainer = ref<HTMLDivElement | null>(null)
+const lineChartContainer = ref<HTMLDivElement | null>(null)
+let mapChart: echarts.ECharts | null = null
+let lineChart: echarts.ECharts | null = null
+
+// 计算当前选中年份的可用月份
+const availableMonths = computed(() => {
+  const months = monthsByYear.value[selectedYear.value]
+  if (!months) return []
+  return Array.from(months)
+    .sort((a, b) => a - b)
+    .map((m) => monthNames[m - 1])
+})
+
+// 当年份改变时，自动选择该年份的第一个可用月份
+watch(selectedYear, (newYear) => {
+  const months = monthsByYear.value[newYear]
+  if (months && months.size > 0) {
+    const firstMonth = Math.min(...Array.from(months))
+    selectedMonth.value = monthNames[firstMonth - 1]
+  }
+})
+
+// 获取当前时间（最后一个flag=0的数据点）- Region视图
+const getCurrentTimeForRegion = () => {
+  const historicalData = regionData.value.data.filter((item: any) => item.flag === 0)
+  if (historicalData.length === 0) return null
+
+  const lastHistorical = historicalData[historicalData.length - 1]
+  const date = new Date(lastHistorical.time)
+  return {
+    year: date.getFullYear(),
+    month: monthNames[date.getMonth()],
+  }
+}
+
+// 获取当前时间（最后一个flag=0的数据点）- Occupation视图
+const getCurrentTimeForOccupation = () => {
+  const historicalData = occupationData.value.data.filter((item: any) => item.flag === 0)
+  if (historicalData.length === 0) return null
+
+  const lastHistorical = historicalData[historicalData.length - 1]
+  const date = new Date(lastHistorical.time)
+  return {
+    year: date.getFullYear(),
+    month: monthNames[date.getMonth()],
+  }
+}
+
+const currentTimeRegion = getCurrentTimeForRegion() || { year: 2025, month: 'August' }
+const currentTimeOccupation = getCurrentTimeForOccupation() || { year: 2025, month: 'August' }
+
+// 根据当前视图返回对应的当前时间
+const currentTime = computed(() => {
+  return activeTab.value === 'region' ? currentTimeRegion : currentTimeOccupation
+})
 
 // 芬兰所有地区列表
 const regions = [
@@ -388,84 +491,201 @@ const regions = [
   'Ahvenanmaa',
 ]
 
-// 生成动态数据的函数 - 根据年份、月份和职业生成数据
+// 地图显示名称映射到标准地区名称（处理英文和其他别名）
+const mapToStandardRegionName: Record<string, string> = {
+  // 英文名称别名
+  Lapland: 'Lappi',
+  'South Karelia': 'Etelä-Karjala',
+  'South Ostrobothnia': 'Etelä-Pohjanmaa',
+  'South Savo': 'Etelä-Savo',
+  Kainuu: 'Kainuu',
+  'Tavastia Proper': 'Kanta-Häme',
+  'Central Ostrobothnia': 'Keski-Pohjanmaa',
+  'Central Finland': 'Keski-Suomi',
+  Kymenlaakso: 'Kymenlaakso',
+  'Päijänne Tavastia': 'Päijät-Häme',
+  Pirkanmaa: 'Pirkanmaa',
+  Ostrobothnia: 'Pohjanmaa',
+  'North Karelia': 'Pohjois-Karjala',
+  'North Ostrobothnia': 'Pohjois-Pohjanmaa',
+  'North Savo': 'Pohjois-Savo',
+  Satakunta: 'Satakunta',
+  'Helsinki-Uusimaa': 'Uusimaa',
+  Uusimaa: 'Uusimaa',
+  'Southwest Finland': 'Varsinais-Suomi',
+  Åland: 'Ahvenanmaa',
+  Ahvenanmaa: 'Ahvenanmaa',
+
+  // 芬兰语原名（直接映射）
+  Lappi: 'Lappi',
+  'Etelä-Karjala': 'Etelä-Karjala',
+  'Etelä-Pohjanmaa': 'Etelä-Pohjanmaa',
+  'Etelä-Savo': 'Etelä-Savo',
+  'Kanta-Häme': 'Kanta-Häme',
+  'Keski-Pohjanmaa': 'Keski-Pohjanmaa',
+  'Keski-Suomi': 'Keski-Suomi',
+  'Päijät-Häme': 'Päijät-Häme',
+  Pohjanmaa: 'Pohjanmaa',
+  'Pohjois-Karjala': 'Pohjois-Karjala',
+  'Pohjois-Pohjanmaa': 'Pohjois-Pohjanmaa',
+  'Pohjois-Savo': 'Pohjois-Savo',
+  'Varsinais-Suomi': 'Varsinais-Suomi',
+}
+
+// JSON数据中的地区名称映射到标准地区名称
+const jsonToStandardRegionName: Record<string, string> = {
+  Ahvenanmaa: 'Ahvenanmaa',
+  'Etela-Karjala': 'Etelä-Karjala',
+  'Etela-Pohjanmaa': 'Etelä-Pohjanmaa',
+  'Etela-Savo': 'Etelä-Savo',
+  Kainuu: 'Kainuu',
+  'Kanta-Hame': 'Kanta-Häme',
+  'Keski-Pohjanmaa': 'Keski-Pohjanmaa',
+  'Keski-Suomi': 'Keski-Suomi',
+  Kymenlaakso: 'Kymenlaakso',
+  Lappi: 'Lappi',
+  'Paijat-Hame': 'Päijät-Häme',
+  Pirkanmaa: 'Pirkanmaa',
+  Pohjanmaa: 'Pohjanmaa',
+  'Pohjois-Karjala': 'Pohjois-Karjala',
+  'Pohjois-Pohjanmaa': 'Pohjois-Pohjanmaa',
+  'Pohjois-Savo': 'Pohjois-Savo',
+  Satakunta: 'Satakunta',
+  Uusimaa: 'Uusimaa',
+  'Varsinais-Suomi': 'Varsinais-Suomi',
+}
+
+// 标准地区名称映射回JSON中的名称（用于查询）
+const standardToJsonRegionName: Record<string, string> = {}
+Object.keys(jsonToStandardRegionName).forEach((key) => {
+  standardToJsonRegionName[jsonToStandardRegionName[key]] = key
+})
+
+// 标准化地区名称（从JSON格式转换为标准格式）
+const normalizeRegionName = (name: string): string => {
+  return jsonToStandardRegionName[name] || name
+}
+
+// 反向标准化（从标准格式转换为JSON格式）
+const denormalizeRegionName = (name: string): string => {
+  return standardToJsonRegionName[name] || name
+}
+
+// 从地图名称转换为标准地区名称（处理地图显示的各种别名）
+const mapNameToStandardRegionName = (mapName: string): string => {
+  return mapToStandardRegionName[mapName] || mapName
+}
+
+// 从标准地区名称转换为地图显示名称（反向查找）
+const standardToMapRegionName: Record<string, string[]> = {}
+Object.keys(mapToStandardRegionName).forEach((mapName) => {
+  const standardName = mapToStandardRegionName[mapName]
+  if (!standardToMapRegionName[standardName]) {
+    standardToMapRegionName[standardName] = []
+  }
+  standardToMapRegionName[standardName].push(mapName)
+})
+
+// 获取某个标准区域名称的所有可能的地图显示名称
+const getMapNamesForStandardRegion = (standardName: string): string[] => {
+  return standardToMapRegionName[standardName] || [standardName]
+}
+
+// 从JSON数据生成地图展示数据 - 根据年份、月份生成数据
 const generateRegionData = (
   year: number,
   month: string,
   isRegionView: boolean,
   occupation?: string,
 ) => {
-  // 基础人口数据
-  const basePopulation: Record<string, number> = {
-    Lappi: 180000,
-    'Pohjois-Pohjanmaa': 410000,
-    Kainuu: 75000,
-    'Pohjois-Karjala': 160000,
-    'Pohjois-Savo': 245000,
-    'Etelä-Savo': 150000,
-    'Etelä-Karjala': 130000,
-    Kymenlaakso: 170000,
-    'Keski-Suomi': 275000,
-    'Etelä-Pohjanmaa': 190000,
-    Pohjanmaa: 180000,
-    'Keski-Pohjanmaa': 68000,
-    Pirkanmaa: 520000,
-    Satakunta: 220000,
-    'Varsinais-Suomi': 480000,
-    'Kanta-Häme': 172000,
-    'Päijät-Häme': 200000,
-    Uusimaa: 1700000,
-    Ahvenanmaa: 30000,
+  if (!isRegionView) {
+    // Occupation视图：从JSON数据读取真实数据
+    const monthIndex = monthNames.indexOf(month) + 1 // 1-12
+    const result: any[] = []
+
+    regions.forEach((region) => {
+      // 将标准地区名称转换为JSON中的格式进行查询
+      const jsonRegionName = denormalizeRegionName(region)
+
+      // 查找对应的数据
+      const dataItem = occupationData.value.data.find((item: any) => {
+        const itemDate = new Date(item.time)
+        const itemYear = itemDate.getFullYear()
+        const itemMonth = itemDate.getMonth() + 1
+
+        return (
+          itemYear === year &&
+          itemMonth === monthIndex &&
+          item.region_name === jsonRegionName &&
+          item.job_name === occupation
+        )
+      })
+
+      const dataValue = dataItem
+        ? {
+            value: parseFloat(dataItem.Vacancy_Jobseeker_Ratio.toFixed(2)), // 直接显示数值
+            job_hunters: dataItem.job_hunters,
+            job_vacancy: dataItem.job_vacancy,
+          }
+        : {
+            value: 0,
+            job_hunters: 0,
+            job_vacancy: 0,
+          }
+
+      // 获取该标准区域名称的所有可能的地图别名
+      const mapNames = getMapNamesForStandardRegion(region)
+      mapNames.forEach((mapName) => {
+        result.push({
+          name: mapName,
+          ...dataValue,
+        })
+      })
+    })
+
+    return result
   }
 
-  // 不同职业的就业率（相对于人口的比例）
-  const occupationRates: Record<string, number> = {
-    'IT & Technology': 0.08,
-    Healthcare: 0.12,
-    'Education & Training': 0.1,
-    Manufacturing: 0.15,
-    'Service Industry': 0.18,
-    'Construction & Engineering': 0.09,
-    Finance: 0.06,
-    'Sales & Retail': 0.14,
-  }
+  // Region视图：从JSON数据读取真实数据
+  const monthIndex = monthNames.indexOf(month) + 1 // 1-12
+  const result: any[] = []
 
-  // 月份索引（用于计算季节性变化）
-  const monthIndex = availableMonths.indexOf(month)
+  regions.forEach((region) => {
+    // 将标准地区名称转换为JSON中的格式进行查询
+    const jsonRegionName = denormalizeRegionName(region)
 
-  // 年份因子（模拟年度增长/下降）
-  const yearFactor = 1 + (year - 2020) * 0.02 // 每年增长2%
+    // 查找对应的数据
+    const dataItem = regionData.value.data.find((item: any) => {
+      const itemDate = new Date(item.time)
+      const itemYear = itemDate.getFullYear()
+      const itemMonth = itemDate.getMonth() + 1
 
-  // 月份因子（模拟季节性波动）
-  const monthFactor = 1 + Math.sin((monthIndex * Math.PI) / 6) * 0.05 // ±5%的季节性波动
+      return itemYear === year && itemMonth === monthIndex && item.region_name === jsonRegionName
+    })
 
-  return regions.map((region) => {
-    let value: number
+    const dataValue = dataItem
+      ? {
+          value: parseFloat(dataItem.Unemployment_Rate.toFixed(2)),
+          unemployment_people: dataItem.unemployment_people,
+          all_people: dataItem.all_people,
+        }
+      : {
+          value: 0,
+          unemployment_people: 0,
+          all_people: 0,
+        }
 
-    if (isRegionView) {
-      // 地区视图：显示总人口，受年份影响
-      const population = basePopulation[region]
-      if (population === undefined) {
-        value = 0
-      } else {
-        value = Math.round(population * yearFactor)
-      }
-    } else {
-      // 职业视图：显示该职业的从业人数
-      const rate = occupationRates[occupation || 'IT & Technology']
-      const population = basePopulation[region]
-      if (rate === undefined || population === undefined) {
-        value = 0
-      } else {
-        value = Math.round(population * rate * yearFactor * monthFactor)
-      }
-    }
-
-    return {
-      name: region,
-      value: value,
-    }
+    // 获取该标准区域名称的所有可能的地图别名
+    const mapNames = getMapNamesForStandardRegion(region)
+    mapNames.forEach((mapName) => {
+      result.push({
+        name: mapName,
+        ...dataValue,
+      })
+    })
   })
+
+  return result
 }
 
 // 计算最大值的函数
@@ -473,219 +693,150 @@ const getMaxValue = (data: Array<{ name: string; value: number }>) => {
   return Math.max(...data.map((item) => item.value))
 }
 
-// 获取总人口（Region View）
-const getTotalPopulation = (region: string) => {
-  const basePopulation: Record<string, number> = {
-    Lappi: 180000,
-    'Pohjois-Pohjanmaa': 410000,
-    Kainuu: 75000,
-    'Pohjois-Karjala': 160000,
-    'Pohjois-Savo': 245000,
-    'Etelä-Savo': 150000,
-    'Etelä-Karjala': 130000,
-    Kymenlaakso: 170000,
-    'Keski-Suomi': 275000,
-    'Etelä-Pohjanmaa': 190000,
-    Pohjanmaa: 180000,
-    'Keski-Pohjanmaa': 68000,
-    Pirkanmaa: 520000,
-    Satakunta: 220000,
-    'Varsinais-Suomi': 480000,
-    'Kanta-Häme': 172000,
-    'Päijät-Häme': 200000,
-    Uusimaa: 1700000,
-    Ahvenanmaa: 30000,
-  }
+// 获取当前时间的数据（用于标记当前时间线）
+const getCurrentTimeData = (region: string) => {
+  const monthIndex = monthNames.indexOf(currentTime.value.month) + 1
+  const jsonRegionName = denormalizeRegionName(region)
 
-  const yearFactor = 1 + (selectedYear.value - 2020) * 0.02
-  return Math.round((basePopulation[region] || 0) * yearFactor)
+  const dataItem = regionData.value.data.find((item: any) => {
+    const itemDate = new Date(item.time)
+    const itemYear = itemDate.getFullYear()
+    const itemMonth = itemDate.getMonth() + 1
+
+    return (
+      itemYear === currentTime.value.year &&
+      itemMonth === monthIndex &&
+      item.region_name === jsonRegionName
+    )
+  })
+
+  return dataItem || null
 }
 
-// 获取失业人数（Region View）
-const getUnemployedCount = (region: string) => {
-  const totalPopulation = getTotalPopulation(region)
+// 获取用户选择时间点的数据（Region View）
+const getSelectedTimeData = (region: string) => {
+  const monthIndex = monthNames.indexOf(selectedMonth.value) + 1
+  const jsonRegionName = denormalizeRegionName(region)
 
-  // 获取当前时间的失业率
-  const trendData = generateTrendData(region, true)
-  const currentIndex = trendData.findIndex(
-    (item) => item.year === currentTime.value.year && item.month === currentTime.value.month,
-  )
+  const dataItem = regionData.value.data.find((item: any) => {
+    const itemDate = new Date(item.time)
+    const itemYear = itemDate.getFullYear()
+    const itemMonth = itemDate.getMonth() + 1
 
-  if (currentIndex === -1) return 0
+    return (
+      itemYear === selectedYear.value &&
+      itemMonth === monthIndex &&
+      item.region_name === jsonRegionName
+    )
+  })
 
-  const dataPoint = trendData[currentIndex]
-  if (!dataPoint) return 0
-
-  const unemploymentRate = dataPoint.rate / 100
-  return Math.round(totalPopulation * unemploymentRate)
+  return dataItem || null
 }
 
-// 获取需求人数（Occupation View）
+// 获取用户选择时间点的总人口（Region View）
+const getTotalPopulationForSelectedTime = (region: string) => {
+  const data = getSelectedTimeData(region)
+  return data ? Math.round(data.all_people) : 0
+}
+
+// 获取用户选择时间点的失业人数（Region View）
+const getUnemployedCountForSelectedTime = (region: string) => {
+  const data = getSelectedTimeData(region)
+  return data ? Math.round(data.unemployment_people) : 0
+}
+
+// 获取用户选择时间点的数据（Occupation View）
+const getSelectedTimeDataForOccupation = (region: string) => {
+  const monthIndex = monthNames.indexOf(selectedMonth.value) + 1
+  const jsonRegionName = denormalizeRegionName(region)
+
+  const dataItem = occupationData.value.data.find((item: any) => {
+    const itemDate = new Date(item.time)
+    const itemYear = itemDate.getFullYear()
+    const itemMonth = itemDate.getMonth() + 1
+
+    return (
+      itemYear === selectedYear.value &&
+      itemMonth === monthIndex &&
+      item.region_name === jsonRegionName &&
+      item.job_name === selectedOccupation.value
+    )
+  })
+
+  return dataItem || null
+}
+
+// 获取找工作的人数（Occupation View）
 const getDemandCount = (region: string) => {
-  const basePopulation: Record<string, number> = {
-    Lappi: 180000,
-    'Pohjois-Pohjanmaa': 410000,
-    Kainuu: 75000,
-    'Pohjois-Karjala': 160000,
-    'Pohjois-Savo': 245000,
-    'Etelä-Savo': 150000,
-    'Etelä-Karjala': 130000,
-    Kymenlaakso: 170000,
-    'Keski-Suomi': 275000,
-    'Etelä-Pohjanmaa': 190000,
-    Pohjanmaa: 180000,
-    'Keski-Pohjanmaa': 68000,
-    Pirkanmaa: 520000,
-    Satakunta: 220000,
-    'Varsinais-Suomi': 480000,
-    'Kanta-Häme': 172000,
-    'Päijät-Häme': 200000,
-    Uusimaa: 1700000,
-    Ahvenanmaa: 30000,
-  }
-
-  const occupationRates: Record<string, number> = {
-    'IT & Technology': 0.08,
-    Healthcare: 0.12,
-    'Education & Training': 0.1,
-    Manufacturing: 0.15,
-    'Service Industry': 0.18,
-    'Construction & Engineering': 0.09,
-    Finance: 0.06,
-    'Sales & Retail': 0.14,
-  }
-
-  const population = basePopulation[region] || 0
-  const rate = occupationRates[selectedOccupation.value] || 0.08
-  const yearFactor = 1 + (selectedYear.value - 2020) * 0.02
-
-  return Math.round(population * rate * yearFactor)
+  const data = getSelectedTimeDataForOccupation(region)
+  return data ? Math.round(data.job_hunters) : 0
 }
 
 // 获取岗位空缺数（Occupation View）
 const getVacancyCount = (region: string) => {
-  const demandCount = getDemandCount(region)
-
-  // 获取当前时间的需求率（岗位空缺率）
-  const trendData = generateTrendData(region, false)
-  const currentIndex = trendData.findIndex(
-    (item) => item.year === currentTime.value.year && item.month === currentTime.value.month,
-  )
-
-  if (currentIndex === -1) return 0
-
-  const dataPoint = trendData[currentIndex]
-  if (!dataPoint) return 0
-
-  const demandRate = dataPoint.rate / 100
-  // 岗位空缺数 = 需求人数 * (1 - 需求率)，这里假设需求率表示岗位填充率
-  // 所以空缺率 = 1 - 需求率/100，然后乘以总需求
-  const vacancyRate = 1 - demandRate
-  return Math.round(demandCount * vacancyRate)
+  const data = getSelectedTimeDataForOccupation(region)
+  return data ? Math.round(data.job_vacancy) : 0
 }
 
-// 生成趋势数据（根据自定义时间范围和视图类型）
+// 生成趋势数据（从JSON读取该区域的所有数据）
 const generateTrendData = (region: string, isRegionView: boolean) => {
-  const startYear = timeRange.value.startYear
-  const endYear = timeRange.value.endYear
-  const startMonthIndex = availableMonths.indexOf(timeRange.value.startMonth)
-  const endMonthIndex = availableMonths.indexOf(timeRange.value.endMonth)
+  if (!isRegionView) {
+    // Occupation 视图：从JSON数据读取真实数据
+    const jsonRegionName = denormalizeRegionName(region)
+    const occupationDataItems = occupationData.value.data.filter((item: any) => {
+      return item.region_name === jsonRegionName && item.job_name === selectedOccupation.value
+    })
 
-  const data: Array<{ year: number; month: string; label: string; rate: number }> = []
+    // 按时间排序
+    occupationDataItems.sort((a: any, b: any) => {
+      return new Date(a.time).getTime() - new Date(b.time).getTime()
+    })
 
-  if (isRegionView) {
-    // Region 视图：显示失业率
-    const baseUnemploymentRate: Record<string, number> = {
-      Lappi: 8.5,
-      'Pohjois-Pohjanmaa': 7.2,
-      Kainuu: 9.8,
-      'Pohjois-Karjala': 9.1,
-      'Pohjois-Savo': 8.3,
-      'Etelä-Savo': 8.9,
-      'Etelä-Karjala': 8.7,
-      Kymenlaakso: 8.4,
-      'Keski-Suomi': 7.8,
-      'Etelä-Pohjanmaa': 6.9,
-      Pohjanmaa: 6.5,
-      'Keski-Pohjanmaa': 7.3,
-      Pirkanmaa: 6.8,
-      Satakunta: 7.6,
-      'Varsinais-Suomi': 6.4,
-      'Kanta-Häme': 7.5,
-      'Päijät-Häme': 7.9,
-      Uusimaa: 5.8,
-      Ahvenanmaa: 4.2,
-    }
+    // 转换为图表数据格式
+    return occupationDataItems.map((item: any) => {
+      const date = new Date(item.time)
+      const year = date.getFullYear()
+      const month = monthNames[date.getMonth()]
 
-    const baseRate = baseUnemploymentRate[region] || 7.5
-
-    for (let year = startYear; year <= endYear; year++) {
-      availableMonths.forEach((month, monthIndex) => {
-        if (year === startYear && monthIndex < startMonthIndex) return
-        if (year === endYear && monthIndex > endMonthIndex) return
-
-        const yearTrend = ((year - startYear) / (endYear - startYear)) * 0.5 - 0.25
-        const seasonalFactor = Math.sin((monthIndex * Math.PI) / 6) * 1.2
-        const randomFactor = (Math.random() - 0.5) * 0.5
-
-        const rate = baseRate + yearTrend + seasonalFactor + randomFactor
-
-        data.push({
-          year,
-          month,
-          label: `${year}-${month.substring(0, 3)}`,
-          rate: Math.max(0, parseFloat(rate.toFixed(2))),
-        })
-      })
-    }
-  } else {
-    // Occupation 视图：显示需求率
-    const baseDemandRate: Record<string, number> = {
-      Lappi: 65.0,
-      'Pohjois-Pohjanmaa': 72.5,
-      Kainuu: 58.0,
-      'Pohjois-Karjala': 62.0,
-      'Pohjois-Savo': 68.0,
-      'Etelä-Savo': 64.5,
-      'Etelä-Karjala': 66.0,
-      Kymenlaakso: 70.0,
-      'Keski-Suomi': 73.5,
-      'Etelä-Pohjanmaa': 75.0,
-      Pohjanmaa: 77.0,
-      'Keski-Pohjanmaa': 71.0,
-      Pirkanmaa: 78.5,
-      Satakunta: 72.0,
-      'Varsinais-Suomi': 80.0,
-      'Kanta-Häme': 74.0,
-      'Päijät-Häme': 73.0,
-      Uusimaa: 85.0,
-      Ahvenanmaa: 82.0,
-    }
-
-    const baseRate = baseDemandRate[region] || 72.0
-
-    for (let year = startYear; year <= endYear; year++) {
-      availableMonths.forEach((month, monthIndex) => {
-        if (year === startYear && monthIndex < startMonthIndex) return
-        if (year === endYear && monthIndex > endMonthIndex) return
-
-        const yearTrend = ((year - startYear) / (endYear - startYear)) * 3 - 1.5
-        const seasonalFactor = Math.sin((monthIndex * Math.PI) / 6) * 2.5
-        const randomFactor = (Math.random() - 0.5) * 1.5
-
-        const rate = baseRate + yearTrend + seasonalFactor + randomFactor
-
-        data.push({
-          year,
-          month,
-          label: `${year}-${month.substring(0, 3)}`,
-          rate: Math.max(0, Math.min(100, parseFloat(rate.toFixed(2)))), // 需求率在0-100之间
-        })
-      })
-    }
+      return {
+        year,
+        month,
+        label: `${year}-${month.substring(0, 3)}`,
+        rate: parseFloat(item.Vacancy_Jobseeker_Ratio.toFixed(2)), // 直接显示数值
+        flag: item.flag,
+        job_hunters: item.job_hunters,
+        job_vacancy: item.job_vacancy,
+      }
+    })
   }
 
-  return data
+  // Region 视图：从JSON数据读取真实数据
+  const jsonRegionName = denormalizeRegionName(region)
+  const regionDataItems = regionData.value.data.filter((item: any) => {
+    return item.region_name === jsonRegionName
+  })
+
+  // 按时间排序
+  regionDataItems.sort((a: any, b: any) => {
+    return new Date(a.time).getTime() - new Date(b.time).getTime()
+  })
+
+  // 转换为图表数据格式
+  return regionDataItems.map((item: any) => {
+    const date = new Date(item.time)
+    const year = date.getFullYear()
+    const month = monthNames[date.getMonth()]
+
+    return {
+      year,
+      month,
+      label: `${year}-${month.substring(0, 3)}`,
+      rate: parseFloat(item.Unemployment_Rate.toFixed(2)),
+      flag: item.flag,
+      unemployment_people: item.unemployment_people,
+      all_people: item.all_people,
+    }
+  })
 }
 
 // Handle year selection from dropdown
@@ -703,6 +854,19 @@ const handleTabChange = (tab: 'region' | 'occupation') => {
   activeTab.value = tab
   // 切换 tab 时关闭趋势图
   selectedRegion.value = null
+
+  // 切换视图时，重置年份和月份为新视图的第一个可用值
+  const years = tab === 'region' ? regionYearsData.years : occupationYearsData.years
+  const monthsData = tab === 'region' ? regionYearsData.monthsByYear : occupationYearsData.monthsByYear
+
+  if (years.length > 0) {
+    selectedYear.value = years[0]
+    const months = monthsData[years[0]]
+    if (months && months.size > 0) {
+      const firstMonth = Math.min(...Array.from(months))
+      selectedMonth.value = monthNames[firstMonth - 1]
+    }
+  }
 }
 
 // Handle occupation selection
@@ -809,34 +973,62 @@ const updateLineChart = () => {
   const isRegionView = activeTab.value === 'region'
   const trendData = generateTrendData(selectedRegion.value, isRegionView)
 
-  // 找到当前时间点的索引
-  const currentIndex = trendData.findIndex(
-    (item) => item.year === currentTime.value.year && item.month === currentTime.value.month,
-  )
+  // 找到最后一个flag=0的数据点索引（当前时间）
+  let currentIndex = -1
+  for (let i = trendData.length - 1; i >= 0; i--) {
+    // flag可能是数字0或字符串，统一比较
+    if (trendData[i].flag === 0 || String(trendData[i].flag) === '0') {
+      currentIndex = i
+      break
+    }
+  }
 
-  // 分割数据：当前时间之前（实线）和之后（虚线）
+  // 如果没有找到flag=0的数据，使用时间匹配
+  if (currentIndex === -1) {
+    currentIndex = trendData.findIndex(
+      (item) => item.year === currentTime.value.year && item.month === currentTime.value.month,
+    )
+  }
+
+  // 分割数据：flag=0（实线）和flag=1/1J（虚线）
   const historicalData = trendData.map((item, index) => {
-    return index <= currentIndex ? item.rate : null
+    // flag为0时显示历史数据
+    const isHistorical = item.flag === 0 || String(item.flag) === '0'
+    return isHistorical ? item.rate : null
   })
 
   const forecastData = trendData.map((item, index) => {
-    return index >= currentIndex ? item.rate : null
+    // flag为'1'或'1J'时显示预测数据
+    const isForecast = item.flag !== 0 && String(item.flag) !== '0'
+    return isForecast ? item.rate : null
   })
 
+  // 为了连接实线和虚线，在交界处添加数据点
+  if (currentIndex >= 0 && currentIndex < trendData.length - 1) {
+    forecastData[currentIndex] = trendData[currentIndex].rate
+  }
+
   // 根据视图类型设置标签
-  const yAxisName = isRegionView ? 'Unemployment Rate (%)' : 'Demand Rate (%)'
+  const yAxisName = isRegionView ? 'Unemployment Rate (%)' : 'Demand Rate'
   const seriesName = isRegionView ? 'Unemployment Rate' : 'Demand Rate'
 
   const option: echarts.EChartsOption = {
     tooltip: {
       trigger: 'axis',
       formatter: (params: any) => {
-        const data = params[0]
-        if (!data || data.dataIndex === undefined) return ''
-        const dataItem = trendData[data.dataIndex]
+        if (!params || params.length === 0) return ''
+
+        // 找到第一个有值的数据
+        const validData = params.find((p: any) => p.value !== null && p.value !== undefined)
+        if (!validData || validData.dataIndex === undefined) return ''
+
+        const dataItem = trendData[validData.dataIndex]
         if (!dataItem) return ''
-        const isForecast = data.dataIndex > currentIndex
-        return `${dataItem.year} ${dataItem.month}<br/>${seriesName}: ${data.value}%${isForecast ? ' (Forecast)' : ''}`
+
+        // 判断是否为预测数据
+        const isForecast = String(dataItem.flag) !== '0'
+        const suffix = isRegionView ? '%' : ''
+        return `${dataItem.year} ${dataItem.month}<br/>${seriesName}: ${validData.value}${suffix}${isForecast ? ' (Forecast)' : ''}`
       },
       backgroundColor: 'rgba(255, 255, 255, 0.95)',
       borderColor: '#e5e7eb',
@@ -907,7 +1099,9 @@ const updateLineChart = () => {
         fontSize: 12,
       },
       axisLabel: {
-        formatter: '{value}%',
+        formatter: (value: number) => {
+          return isRegionView ? `${value}%` : `${value}`
+        },
         fontSize: 11,
         color: '#6b7280',
       },
@@ -957,26 +1151,46 @@ const updateLineChart = () => {
           },
           scale: 1.5,
         },
-        // 添加当前时间标记线
+        // 添加时间标记线
         markLine: {
           silent: false,
           symbol: 'none',
-          label: {
-            show: true,
-            position: 'end',
-            formatter: 'Current Time',
-            color: '#ef4444',
-            fontSize: 11,
-            fontWeight: 'bold',
-          },
-          lineStyle: {
-            color: '#ef4444',
-            width: 2,
-            type: 'solid',
-          },
           data: [
+            // 当前时间标记线（红色）
             {
               xAxis: currentIndex,
+              label: {
+                show: true,
+                position: 'end',
+                formatter: 'Current Time',
+                color: '#ef4444',
+                fontSize: 11,
+                fontWeight: 'bold',
+              },
+              lineStyle: {
+                color: '#ef4444',
+                width: 2,
+                type: 'solid',
+              },
+            },
+            // 用户选择时间标记线（绿色）
+            {
+              xAxis: trendData.findIndex(
+                (item) => item.year === selectedYear.value && item.month === selectedMonth.value,
+              ),
+              label: {
+                show: true,
+                position: 'start',
+                formatter: 'Selected Time',
+                color: '#10b981',
+                fontSize: 11,
+                fontWeight: 'bold',
+              },
+              lineStyle: {
+                color: '#10b981',
+                width: 2,
+                type: 'dashed',
+              },
             },
           ],
         },
@@ -1042,7 +1256,28 @@ const updateChart = () => {
     tooltip: {
       trigger: 'item',
       formatter: (params: any) => {
-        return `${params.name}<br/>${isRegionView ? 'Population' : 'Employees'}: ${params.value ? params.value.toLocaleString() : 'N/A'}`
+        // 将地图名称转换为标准地区名称以查找数据
+        const mapName = params.name
+        const standardRegionName = mapNameToStandardRegionName(mapName)
+
+        // 查找对应的数据（使用标准名称）
+        const dataItem = data.find((item) => item.name === standardRegionName)
+
+        if (isRegionView) {
+          // Region视图：显示失业率信息
+          if (dataItem) {
+            return `${mapName}<br/>Unemployment Rate: ${dataItem.value}%<br/>Unemployed: ${dataItem.unemployment_people?.toLocaleString() || 'N/A'}<br/>Total Population: ${dataItem.all_people?.toLocaleString() || 'N/A'}`
+          } else {
+            return `${mapName}<br/>Unemployment Rate: N/A<br/>Unemployed: N/A<br/>Total Population: N/A`
+          }
+        } else {
+          // Occupation视图：显示需求率信息
+          if (dataItem) {
+            return `${mapName}<br/>Demand Rate: ${dataItem.value}<br/>Job Hunters: ${dataItem.job_hunters?.toLocaleString() || 'N/A'}<br/>Job Vacancies: ${dataItem.job_vacancy?.toLocaleString() || 'N/A'}`
+          } else {
+            return `${mapName}<br/>Demand Rate: N/A<br/>Job Hunters: N/A<br/>Job Vacancies: N/A`
+          }
+        }
       },
       backgroundColor: 'rgba(255, 255, 255, 0.95)',
       borderColor: '#e5e7eb',
@@ -1080,23 +1315,30 @@ const updateChart = () => {
         emphasis: {
           label: {
             show: true,
-            color: '#1e40af',
+            color: '#ffffff',
+            fontWeight: 'bold',
+            fontSize: 11,
           },
           itemStyle: {
             areaColor: '#60a5fa',
-            borderColor: 'transparent',
-            borderWidth: 0,
+            borderColor: '#ffffff',
+            borderWidth: 1,
+            shadowBlur: 10,
+            shadowColor: 'rgba(0, 0, 0, 0.3)',
           },
         },
         itemStyle: {
-          areaColor: '#e5e7eb',
-          borderColor: 'transparent',
-          borderWidth: 0,
+          areaColor: '#94a3b8',
+          borderColor: '#64748b',
+          borderWidth: 1,
         },
         label: {
           show: true,
           fontSize: 10,
-          color: '#4b5563',
+          color: '#ffffff',
+          fontWeight: '600',
+          textBorderColor: 'rgba(0, 0, 0, 0.5)',
+          textBorderWidth: 2,
         },
         data: data,
       },
@@ -1109,13 +1351,18 @@ const updateChart = () => {
   mapChart.off('click') // Remove previous listeners
   mapChart.on('click', (params: any) => {
     if (params.componentType === 'series' && params.name) {
-      console.log('点击的地区:', params.name)
+      console.log('点击的地区（地图名称）:', params.name)
+
+      // 将地图名称转换为标准地区名称
+      const standardRegionName = mapNameToStandardRegionName(params.name)
+      console.log('转换后的标准地区名称:', standardRegionName)
+
       // 如果点击的是同一个地区，则取消选择
-      if (selectedRegion.value === params.name) {
+      if (selectedRegion.value === standardRegionName) {
         selectedRegion.value = null
       } else {
-        // 否则选择新的地区
-        selectedRegion.value = params.name
+        // 否则选择新的地区（使用标准名称）
+        selectedRegion.value = standardRegionName
       }
     }
   })
@@ -1124,18 +1371,32 @@ const updateChart = () => {
 watch(activeTab, () => {
   nextTick(() => {
     updateChart()
+    // 切换tab后,确保地图调整大小以适应新的容器宽度
+    setTimeout(() => {
+      if (mapChart) {
+        mapChart.resize()
+      }
+    }, 350) // 等待CSS transition完成
   })
 })
 watch(selectedYear, () => {
   // In a real application, this would filter the data by year
   nextTick(() => {
     updateChart()
+    // 如果趋势图已经打开，更新趋势图以反映新的选择时间
+    if (selectedRegion.value && lineChart) {
+      updateLineChart()
+    }
   })
 })
 watch(selectedMonth, () => {
   // In a real application, this would filter the data by month
   nextTick(() => {
     updateChart()
+    // 如果趋势图已经打开，更新趋势图以反映新的选择时间
+    if (selectedRegion.value && lineChart) {
+      updateLineChart()
+    }
   })
 })
 watch(selectedOccupation, () => {
