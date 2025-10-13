@@ -11,11 +11,6 @@ exercise3/hasy-data/
 exercise3/world_m/
 exercise3/cities/
 
-# 输出/临时文件
-*.csv
-*.json
-*.txt
-
 # IDE/编辑器配置
 .vscode/
 .DS_Store
