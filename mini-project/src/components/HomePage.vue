@@ -409,8 +409,8 @@ const monthNames = [
 
 // Reactive states
 const activeTab = ref<'region' | 'occupation'>('region')
-const selectedYear = ref<any>(regionYearsData.years.length > 0 ? regionYearsData.years[0] : 2008)
-const selectedMonth = ref<string>('January')
+const selectedYear = ref<any>(2025)
+const selectedMonth = ref<string>('August')
 const selectedOccupation = ref<string>(
   availableOccupations.length > 0 ? availableOccupations[0] : 'Administration professionals',
 )
