@@ -8,12 +8,12 @@
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         <div class="text-center space-y-2">
           <h1 class="text-3xl md:text-4xl font-bold tracking-tight title-gradient">
-            Work in Finland
+            Your Career Compass for Finland
           </h1>
           <div class="flex items-center justify-center gap-2">
             <div class="h-px w-8 bg-blue-200"></div>
             <p class="text-blue-100 text-sm md:text-base font-light tracking-wide">
-              Work in Finland
+              Your Career Compass for Finland
             </p>
             <div class="h-px w-8 bg-blue-200"></div>
           </div>
@@ -375,7 +375,21 @@ const extractAvailableOccupations = () => {
       occupationsSet.add(item.job_name)
     }
   })
-  return Array.from(occupationsSet).sort()
+  const sortedOccupations = Array.from(occupationsSet).sort()
+
+  // 将 "Medical doctors" 移到第二个位置
+  const medicalDoctorsIndex = sortedOccupations.findIndex(
+    (occupation) => occupation === 'Medical doctors'
+  )
+
+  if (medicalDoctorsIndex > -1 && medicalDoctorsIndex !== 1) {
+    // 移除 "Medical doctors"
+    const medicalDoctors = sortedOccupations.splice(medicalDoctorsIndex, 1)[0]
+    // 插入到第二个位置（索引1）
+    sortedOccupations.splice(1, 0, medicalDoctors)
+  }
+
+  return sortedOccupations
 }
 
 const availableOccupations = extractAvailableOccupations()
@@ -859,17 +873,26 @@ const handleTabChange = (tab: 'region' | 'occupation') => {
   // 切换 tab 时关闭趋势图
   selectedRegion.value = null
 
-  // 切换视图时，重置年份和月份为新视图的第一个可用值
-  const years = tab === 'region' ? regionYearsData.years : occupationYearsData.years
+  // 切换视图时，尝试保持2025年8月，如果不可用则使用第一个可用值
   const monthsData =
     tab === 'region' ? regionYearsData.monthsByYear : occupationYearsData.monthsByYear
 
-  if (years.length > 0) {
-    selectedYear.value = years[0]
-    const months = monthsData[years[0]]
-    if (months && months.size > 0) {
-      const firstMonth = Math.min(...Array.from(months))
-      selectedMonth.value = monthNames[firstMonth - 1]
+  // 检查2025年8月是否可用
+  const months2025 = monthsData[2025]
+  if (months2025 && months2025.has(8)) {
+    // 如果2025年8月可用，保持不变
+    selectedYear.value = 2025
+    selectedMonth.value = 'August'
+  } else {
+    // 否则使用第一个可用的年份和月份
+    const years = tab === 'region' ? regionYearsData.years : occupationYearsData.years
+    if (years.length > 0) {
+      selectedYear.value = years[0]
+      const months = monthsData[years[0]]
+      if (months && months.size > 0) {
+        const firstMonth = Math.min(...Array.from(months))
+        selectedMonth.value = monthNames[firstMonth - 1]
+      }
     }
   }
 }
@@ -1408,6 +1431,10 @@ watch(selectedOccupation, () => {
   // Update chart when occupation changes
   nextTick(() => {
     updateChart()
+    // 如果趋势图已经打开，更新趋势图以反映新的职业选择
+    if (selectedRegion.value && lineChart) {
+      updateLineChart()
+    }
   })
 })
 watch(selectedRegion, (newRegion) => {
