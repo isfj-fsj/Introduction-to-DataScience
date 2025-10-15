@@ -8,12 +8,12 @@
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         <div class="text-center space-y-2">
           <h1 class="text-3xl md:text-4xl font-bold tracking-tight title-gradient">
-            Finland Unemployment Rate Regression Analysis
+            Work in Finland
           </h1>
           <div class="flex items-center justify-center gap-2">
             <div class="h-px w-8 bg-blue-200"></div>
             <p class="text-blue-100 text-sm md:text-base font-light tracking-wide">
-              Finland Unemployment Rate Regression Analysis
+              Work in Finland
             </p>
             <div class="h-px w-8 bg-blue-200"></div>
           </div>
@@ -236,7 +236,7 @@
                   </a-statistic>
                 </a-col>
 
-                <!-- Region View: Unemployed Count & Total Population -->
+                <!-- Region View: Unemployed Count & Total Workforce -->
                 <template v-if="activeTab === 'region'">
                   <a-col :span="12">
                     <a-statistic
@@ -251,7 +251,7 @@
                   </a-col>
                   <a-col :span="12">
                     <a-statistic
-                      title="Total Population"
+                      title="Total Workforce"
                       :value="getTotalPopulationForSelectedTime(selectedRegion)"
                       :value-style="{ color: '#1890ff' }"
                     >
@@ -386,7 +386,9 @@ const availableYears = computed(() => {
 })
 
 const monthsByYear = computed(() => {
-  return activeTab.value === 'region' ? regionYearsData.monthsByYear : occupationYearsData.monthsByYear
+  return activeTab.value === 'region'
+    ? regionYearsData.monthsByYear
+    : occupationYearsData.monthsByYear
 })
 
 // 月份名称映射
@@ -409,7 +411,9 @@ const monthNames = [
 const activeTab = ref<'region' | 'occupation'>('region')
 const selectedYear = ref<any>(regionYearsData.years.length > 0 ? regionYearsData.years[0] : 2008)
 const selectedMonth = ref<string>('January')
-const selectedOccupation = ref<string>(availableOccupations.length > 0 ? availableOccupations[0] : 'Administration professionals')
+const selectedOccupation = ref<string>(
+  availableOccupations.length > 0 ? availableOccupations[0] : 'Administration professionals',
+)
 const selectedRegion = ref<string | null>(null)
 const chartContainer = ref<HTMLDivElement | null>(null)
 const lineChartContainer = ref<HTMLDivElement | null>(null)
@@ -857,7 +861,8 @@ const handleTabChange = (tab: 'region' | 'occupation') => {
 
   // 切换视图时，重置年份和月份为新视图的第一个可用值
   const years = tab === 'region' ? regionYearsData.years : occupationYearsData.years
-  const monthsData = tab === 'region' ? regionYearsData.monthsByYear : occupationYearsData.monthsByYear
+  const monthsData =
+    tab === 'region' ? regionYearsData.monthsByYear : occupationYearsData.monthsByYear
 
   if (years.length > 0) {
     selectedYear.value = years[0]
@@ -1266,9 +1271,9 @@ const updateChart = () => {
         if (isRegionView) {
           // Region视图：显示失业率信息
           if (dataItem) {
-            return `${mapName}<br/>Unemployment Rate: ${dataItem.value}%<br/>Unemployed: ${dataItem.unemployment_people?.toLocaleString() || 'N/A'}<br/>Total Population: ${dataItem.all_people?.toLocaleString() || 'N/A'}`
+            return `${mapName}<br/>Unemployment Rate: ${dataItem.value}%<br/>Unemployed: ${dataItem.unemployment_people?.toLocaleString() || 'N/A'}<br/>Total Workforce: ${dataItem.all_people?.toLocaleString() || 'N/A'}`
           } else {
-            return `${mapName}<br/>Unemployment Rate: N/A<br/>Unemployed: N/A<br/>Total Population: N/A`
+            return `${mapName}<br/>Unemployment Rate: N/A<br/>Unemployed: N/A<br/>Total Workforce: N/A`
           }
         } else {
           // Occupation视图：显示需求率信息
