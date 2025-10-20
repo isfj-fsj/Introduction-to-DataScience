@@ -14,3 +14,6 @@ exercise3/cities/
 # IDE/编辑器配置
 .vscode/
 .DS_Store
+
+dist
+node_modules
