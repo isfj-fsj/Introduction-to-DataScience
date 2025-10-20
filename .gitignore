@@ -1,16 +1,47 @@
-# Python 缓存文件
-__pycache__/
-*.pyc
-*.pyo
+# Dependencies
+node_modules/
+dist/
 
-# Jupyter Notebook 检查点
-.ipynb_checkpoints/
+# Build outputs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
-# 大型数据集文件夹（例如 hasy-data, world_m, cities）
-exercise3/hasy-data/
-exercise3/world_m/
-exercise3/cities/
-
-# IDE/编辑器配置
-.vscode/
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
 .DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Production
+/dist
+/build
+
+# Logs
+logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db

@@ -386,7 +386,9 @@ const extractAvailableOccupations = () => {
     // 移除 "Medical doctors"
     const medicalDoctors = sortedOccupations.splice(medicalDoctorsIndex, 1)[0]
     // 插入到第二个位置（索引1）
-    sortedOccupations.splice(1, 0, medicalDoctors)
+    if (medicalDoctors) {
+      sortedOccupations.splice(1, 0, medicalDoctors)
+    }
   }
 
   return sortedOccupations
@@ -426,7 +428,7 @@ const activeTab = ref<'region' | 'occupation'>('region')
 const selectedYear = ref<any>(2025)
 const selectedMonth = ref<string>('August')
 const selectedOccupation = ref<string>(
-  availableOccupations.length > 0 ? availableOccupations[0] : 'Administration professionals',
+  availableOccupations.length > 0 && availableOccupations[0] ? availableOccupations[0] : 'Administration professionals',
 )
 const selectedRegion = ref<string | null>(null)
 const chartContainer = ref<HTMLDivElement | null>(null)
@@ -448,7 +450,10 @@ watch(selectedYear, (newYear) => {
   const months = monthsByYear.value[newYear]
   if (months && months.size > 0) {
     const firstMonth = Math.min(...Array.from(months))
-    selectedMonth.value = monthNames[firstMonth - 1]
+    const monthName = monthNames[firstMonth - 1]
+    if (monthName) {
+      selectedMonth.value = monthName
+    }
   }
 })
 
@@ -576,7 +581,10 @@ const jsonToStandardRegionName: Record<string, string> = {
 // 标准地区名称映射回JSON中的名称（用于查询）
 const standardToJsonRegionName: Record<string, string> = {}
 Object.keys(jsonToStandardRegionName).forEach((key) => {
-  standardToJsonRegionName[jsonToStandardRegionName[key]] = key
+  const value = jsonToStandardRegionName[key]
+  if (value) {
+    standardToJsonRegionName[value] = key
+  }
 })
 
 // 标准化地区名称（从JSON格式转换为标准格式）
@@ -598,10 +606,12 @@ const mapNameToStandardRegionName = (mapName: string): string => {
 const standardToMapRegionName: Record<string, string[]> = {}
 Object.keys(mapToStandardRegionName).forEach((mapName) => {
   const standardName = mapToStandardRegionName[mapName]
-  if (!standardToMapRegionName[standardName]) {
-    standardToMapRegionName[standardName] = []
+  if (standardName) {
+    if (!standardToMapRegionName[standardName]) {
+      standardToMapRegionName[standardName] = []
+    }
+    standardToMapRegionName[standardName].push(mapName)
   }
-  standardToMapRegionName[standardName].push(mapName)
 })
 
 // 获取某个标准区域名称的所有可能的地图显示名称
@@ -713,7 +723,9 @@ const getMaxValue = (data: Array<{ name: string; value: number }>) => {
 
 // 获取当前时间的数据（用于标记当前时间线）
 const getCurrentTimeData = (region: string) => {
-  const monthIndex = monthNames.indexOf(currentTime.value.month) + 1
+  const currentMonth = currentTime.value.month
+  if (!currentMonth) return null
+  const monthIndex = monthNames.indexOf(currentMonth) + 1
   const jsonRegionName = denormalizeRegionName(region)
 
   const dataItem = regionData.value.data.find((item: any) => {
@@ -733,6 +745,7 @@ const getCurrentTimeData = (region: string) => {
 
 // 获取用户选择时间点的数据（Region View）
 const getSelectedTimeData = (region: string) => {
+  if (!selectedMonth.value) return null
   const monthIndex = monthNames.indexOf(selectedMonth.value) + 1
   const jsonRegionName = denormalizeRegionName(region)
 
@@ -765,6 +778,7 @@ const getUnemployedCountForSelectedTime = (region: string) => {
 
 // 获取用户选择时间点的数据（Occupation View）
 const getSelectedTimeDataForOccupation = (region: string) => {
+  if (!selectedMonth.value) return null
   const monthIndex = monthNames.indexOf(selectedMonth.value) + 1
   const jsonRegionName = denormalizeRegionName(region)
 
@@ -819,7 +833,7 @@ const generateTrendData = (region: string, isRegionView: boolean) => {
       return {
         year,
         month,
-        label: `${year}-${month.substring(0, 3)}`,
+        label: `${year}-${month ? month.substring(0, 3) : ''}`,
         rate: parseFloat(item.Vacancy_Jobseeker_Ratio.toFixed(2)), // 直接显示数值
         flag: item.flag,
         job_hunters: item.job_hunters,
@@ -848,7 +862,7 @@ const generateTrendData = (region: string, isRegionView: boolean) => {
     return {
       year,
       month,
-      label: `${year}-${month.substring(0, 3)}`,
+      label: `${year}-${month ? month.substring(0, 3) : ''}`,
       rate: parseFloat(item.Unemployment_Rate.toFixed(2)),
       flag: item.flag,
       unemployment_people: item.unemployment_people,
@@ -886,12 +900,15 @@ const handleTabChange = (tab: 'region' | 'occupation') => {
   } else {
     // 否则使用第一个可用的年份和月份
     const years = tab === 'region' ? regionYearsData.years : occupationYearsData.years
-    if (years.length > 0) {
+    if (years.length > 0 && years[0] !== undefined) {
       selectedYear.value = years[0]
       const months = monthsData[years[0]]
       if (months && months.size > 0) {
         const firstMonth = Math.min(...Array.from(months))
-        selectedMonth.value = monthNames[firstMonth - 1]
+        const monthName = monthNames[firstMonth - 1]
+        if (monthName) {
+          selectedMonth.value = monthName
+        }
       }
     }
   }
@@ -1014,18 +1031,18 @@ const updateLineChart = () => {
   // 如果没有找到flag=0的数据，使用时间匹配
   if (currentIndex === -1) {
     currentIndex = trendData.findIndex(
-      (item) => item.year === currentTime.value.year && item.month === currentTime.value.month,
+      (item: any) => item.year === currentTime.value.year && item.month === currentTime.value.month,
     )
   }
 
   // 分割数据：flag=0（实线）和flag=1/1J（虚线）
-  const historicalData = trendData.map((item, index) => {
+  const historicalData = trendData.map((item: any) => {
     // flag为0时显示历史数据
     const isHistorical = item.flag === 0 || String(item.flag) === '0'
     return isHistorical ? item.rate : null
   })
 
-  const forecastData = trendData.map((item, index) => {
+  const forecastData = trendData.map((item: any) => {
     // flag为'1'或'1J'时显示预测数据
     const isForecast = item.flag !== 0 && String(item.flag) !== '0'
     return isForecast ? item.rate : null
@@ -1106,7 +1123,7 @@ const updateLineChart = () => {
     ],
     xAxis: {
       type: 'category',
-      data: trendData.map((item) => item.label),
+      data: trendData.map((item: any) => item.label),
       axisLabel: {
         rotate: 45,
         fontSize: 10,
@@ -1204,7 +1221,7 @@ const updateLineChart = () => {
             // 用户选择时间标记线（绿色）
             {
               xAxis: trendData.findIndex(
-                (item) => item.year === selectedYear.value && item.month === selectedMonth.value,
+                (item: any) => item.year === selectedYear.value && item.month === selectedMonth.value,
               ),
               label: {
                 show: true,
@@ -1344,7 +1361,7 @@ const updateChart = () => {
           label: {
             show: true,
             color: '#ffffff',
-            fontWeight: 'bold',
+            fontWeight: 'bold' as const,
             fontSize: 11,
           },
           itemStyle: {
@@ -1364,7 +1381,7 @@ const updateChart = () => {
           show: true,
           fontSize: 10,
           color: '#ffffff',
-          fontWeight: '600',
+          fontWeight: 'bold' as const,
           textBorderColor: 'rgba(0, 0, 0, 0.5)',
           textBorderWidth: 2,
         },
